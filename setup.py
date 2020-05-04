@@ -18,7 +18,7 @@ setup(
     version=verstr,
     author='Alexis de Lattre',
     author_email='alexis.delattre@akretion.com',
-    url='https://github.com/akretion/factur-x',
+    url='https://github.com/WendelSiqueira/factur-x',
     description='Factur-X: electronic invoicing standard for Germany & France',
     long_description=open('README.rst').read(),
     license='BSD',
