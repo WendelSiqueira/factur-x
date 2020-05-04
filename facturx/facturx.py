@@ -54,7 +54,7 @@ logging.basicConfig(format=FORMAT)
 logger = logging.getLogger('factur-x')
 logger.setLevel(logging.INFO)
 
-FACTURX_FILENAME = 'factur-x.xml'
+FACTURX_FILENAME_DEFAULT = 'factur-x.xml'
 ZUGFERD_FILENAMES = ['zugferd-invoice.xml', 'ZUGFeRD-invoice.xml']
 FACTURX_LEVEL2xsd = {
     'minimum': 'facturx-minimum/FACTUR-X_MINIMUM.xsd',
@@ -275,7 +275,7 @@ def get_facturx_xml_from_pdf(pdf_invoice, check_xsd=True):
     try:
         for (filename, file_obj) in embeddedfiles_by_two:
             logger.debug('found filename=%s', filename)
-            if filename in [FACTURX_FILENAME] + ZUGFERD_FILENAMES:
+            if filename in [FACTURX_FILENAME_DEFAULT] + ZUGFERD_FILENAMES:
                 xml_file_dict = file_obj.getObject()
                 logger.debug('xml_file_dict=%s', xml_file_dict)
                 tmp_xml_string = xml_file_dict['/EF']['/F'].getData()
@@ -329,7 +329,7 @@ def _prepare_pdf_metadata_txt(pdf_metadata):
     return info_dict
 
 
-def _prepare_pdf_metadata_xml(facturx_level, pdf_metadata):
+def _prepare_pdf_metadata_xml(facturx_level, pdf_metadata, filename_facturx=FACTURX_FILENAME_DEFAULT):
     xml_str = """
 <?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -420,7 +420,7 @@ def _prepare_pdf_metadata_xml(facturx_level, pdf_metadata):
         creator_tool='factur-x python lib v%s by Alexis de Lattre' % __version__,
         timestamp=_get_metadata_timestamp(),
         facturx_documenttype='INVOICE',
-        facturx_filename=FACTURX_FILENAME,
+        facturx_filename=filename_facturx,
         facturx_version='1.0',
         facturx_level=FACTURX_LEVEL2xmp[facturx_level])
     xml_byte = xml_str.encode('utf-8')
@@ -481,7 +481,7 @@ def _filespec_additional_attachments(
 
 def _facturx_update_metadata_add_attachment(
         pdf_filestream, facturx_xml_str, pdf_metadata, facturx_level,
-        output_intents=[], additional_attachments={}):
+        output_intents=[], additional_attachments={}, filename_facturx=FACTURX_FILENAME_DEFAULT):
     '''This method is inspired from the code of the addAttachment()
     method of the PyPDF2 lib'''
     # The entry for the file
@@ -508,7 +508,7 @@ def _facturx_update_metadata_add_attachment(
         NameObject('/UF'): file_entry_obj,
         })
 
-    fname_obj = createStringObject(FACTURX_FILENAME)
+    fname_obj = createStringObject(filename_facturx)
     filespec_dict = DictionaryObject({
         NameObject("/AFRelationship"): NameObject("/Data"),
         NameObject("/Desc"): createStringObject("Factur-X Invoice"),
@@ -552,7 +552,7 @@ def _facturx_update_metadata_add_attachment(
         output_intent_obj = pdf_filestream._addObject(output_intent_dict)
         res_output_intents.append(output_intent_obj)
     # Update the root
-    metadata_xml_str = _prepare_pdf_metadata_xml(facturx_level, pdf_metadata)
+    metadata_xml_str = _prepare_pdf_metadata_xml(facturx_level, pdf_metadata, filename_facturx=filename_facturx)
     metadata_file_entry = DecodedStreamObject()
     metadata_file_entry.setData(metadata_xml_str)
     metadata_file_entry.update({
@@ -738,7 +738,7 @@ def generate_facturx_from_binary(
 def generate_facturx_from_file(
         pdf_invoice, facturx_xml, facturx_level='autodetect',
         check_xsd=True, pdf_metadata=None, output_pdf_file=None,
-        additional_attachments=None, attachments=None):
+        additional_attachments=None, attachments=None, filename_facturx=FACTURX_FILENAME_DEFAULT):
     """
     Generate a Factur-X invoice from a regular PDF invoice and a factur-X XML
     file. The method uses a file as input (regular PDF invoice) and re-writes
@@ -785,6 +785,8 @@ def generate_facturx_from_file(
     :type attachments: dict
     :param additional_attachments: DEPRECATED. Use attachments instead.
     Undocumented.
+    :param filename_facturx is for name xml file inside the pdf
+    :type filename_facturx: str
     :return: Returns True. This method re-writes the input PDF invoice file,
     unless if the output_pdf_file is provided.
     :rtype: bool
@@ -815,7 +817,7 @@ def generate_facturx_from_file(
         raise ValueError(
             'additional_attachments argument must be a dict or None')
     if not isinstance(output_pdf_file, (type(None), str, unicode)):
-        raise ValueError('output_pdf_file argument must be a string or None')
+        raise ValueError('output_pdf_file argument must be a     string or None')
     if isinstance(pdf_invoice, (str, unicode)):
         file_type = 'path'
     else:
@@ -862,7 +864,7 @@ def generate_facturx_from_file(
                 fa.close()
     if attachments:
         for filename, fadict in attachments.items():
-            if filename in [FACTURX_FILENAME] + ZUGFERD_FILENAMES:
+            if filename in [filename_facturx] + ZUGFERD_FILENAMES:
                 logger.warning(
                     'You cannot provide as attachment a file named %s. '
                     'This file will NOT be attached.', filename)
@@ -914,7 +916,7 @@ def generate_facturx_from_file(
         # else : generate some ?
     _facturx_update_metadata_add_attachment(
         new_pdf_filestream, xml_string, pdf_metadata, facturx_level,
-        output_intents=output_intents, additional_attachments=attachments)
+        output_intents=output_intents, additional_attachments=attachments, filename_facturx=filename_facturx)
     if output_pdf_file:
         with open(output_pdf_file, 'wb') as output_f:
             new_pdf_filestream.write(output_f)
@@ -926,7 +928,7 @@ def generate_facturx_from_file(
                 f.close()
         elif file_type == 'file':
             new_pdf_filestream.write(pdf_invoice)
-    logger.info('%s file added to PDF invoice', FACTURX_FILENAME)
+    logger.info('%s file added to PDF invoice', filename_facturx)
     end_chrono = datetime.now()
     logger.info(
         'Factur-X invoice generated in %s seconds',
